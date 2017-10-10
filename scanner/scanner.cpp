@@ -55,7 +55,7 @@ struct argument_t : public element_t
       throw std::runtime_error("Enum type must be int or uint");
   }
 
-  std::string print_type()
+  std::string print_type(bool server)
   {
     if(interface != "")
       return interface + "_t";
@@ -70,9 +70,9 @@ struct argument_t : public element_t
     else if(type == "string")
       return "std::string";
     else if(type == "object")
-      return "proxy_t";
+      return server ? "resource_t" : "proxy_t";
     else if(type == "new_id")
-      return "proxy_t";
+      return server ? "resource_t" : "proxy_t";
     else if(type == "fd")
       return "int";
     else if(type == "array")
@@ -103,9 +103,9 @@ struct argument_t : public element_t
       return "x";
   }
 
-  std::string print_argument()
+  std::string print_argument(bool server)
   {
-    return print_type() + " " + name;
+    return print_type(server) + " " + name;
   }
 };
 
@@ -114,13 +114,15 @@ struct event_t : public element_t
   std::string name;
   std::list<argument_t> args;
   int since;
+  argument_t ret;
+  int opcode;
 
-  std::string print_functional()
+  std::string print_functional(bool server)
   {
     std::stringstream ss;
     ss << "    std::function<void(";
     for(auto &arg : args)
-      ss << arg.print_type() << ", ";
+      ss << arg.print_type(server) << ", ";
     if(args.size())
       ss.str(ss.str().substr(0, ss.str().size()-2));
     ss.seekp(0, std::ios_base::end);
@@ -128,7 +130,7 @@ struct event_t : public element_t
     return ss.str();
   }
 
-  std::string print_dispatcher(int opcode)
+  std::string print_dispatcher(int opcode, bool server)
   {
     std::stringstream ss;
     ss << "    case " << opcode << ":" << std::endl
@@ -137,11 +139,16 @@ struct event_t : public element_t
     int c = 0;
     for(auto &arg : args)
       if(arg.enum_name != "")
-        ss << arg.print_type() << "(args[" << c++ << "].get<" << arg.print_enum_wire_type() << ">()), ";
+        ss << arg.print_type(server) << "(args[" << c++ << "].get<" << arg.print_enum_wire_type() << ">()), ";
       else if(arg.interface != "")
-        ss << arg.print_type() << "(args[" << c++ << "].get<proxy_t>()), ";
+        {
+          if(server)
+            ss << arg.print_type(server) << "(args[" << c++ << "].get<resource_t>()), ";
+          else
+            ss << arg.print_type(server) << "(args[" << c++ << "].get<proxy_t>()), ";
+        }
       else
-        ss << "args[" << c++ << "].get<" << arg.print_type() << ">(), ";
+        ss << "args[" << c++ << "].get<" << arg.print_type(server) << ">(), ";
     if(args.size())
       ss.str(ss.str().substr(0, ss.str().size()-2));
     ss.seekp(0, std::ios_base::end);
@@ -150,7 +157,7 @@ struct event_t : public element_t
     return ss.str();
   }
 
-  std::string print_signal_header()
+  std::string print_signal_header(bool server)
   {
     std::stringstream ss;
     ss << "  /** \\brief " << summary << std::endl;
@@ -161,7 +168,7 @@ struct event_t : public element_t
 
     ss << "  std::function<void(";
     for(auto &arg : args)
-      ss << arg.print_type() + ", ";
+      ss << arg.print_type(server) + ", ";
     if(args.size())
       ss.str(ss.str().substr(0, ss.str().size()-2));
     ss.seekp(0, std::ios_base::end);
@@ -169,12 +176,12 @@ struct event_t : public element_t
     return ss.str();
   }
 
-  std::string print_signal_body(std::string interface_name)
+  std::string print_signal_body(std::string interface_name, bool server)
   {
     std::stringstream ss;
     ss << "std::function<void(";
     for(auto &arg : args)
-      ss << arg.print_type() << ", ";
+      ss << arg.print_type(server) << ", ";
     if(args.size())
       ss.str(ss.str().substr(0, ss.str().size()-2));
     ss.seekp(0, std::ios_base::end);
@@ -184,12 +191,6 @@ struct event_t : public element_t
        << "}" << std::endl;
     return ss.str();
   }
-};
-
-struct request_t : public event_t
-{
-  argument_t ret;
-  int opcode;
 
   std::string availability_function_name()
   {
@@ -204,7 +205,7 @@ struct request_t : public event_t
     return name + "_since_version";
   }
 
-  std::string print_header()
+  std::string print_header(bool server)
   {
     std::stringstream ss;
     ss << "  /** \\brief " << summary << std::endl;
@@ -224,10 +225,10 @@ struct request_t : public event_t
     ss << description << std::endl
        << "  */" << std::endl;
 
-    if(ret.name == "")
+    if(ret.name == "" || server)
       ss << "  void ";
     else
-      ss << "  " << ret.print_type() << " ";
+      ss << "  " << ret.print_type(server) << " ";
     ss << name << "(";
 
     for(auto &arg : args)
@@ -237,7 +238,10 @@ struct request_t : public event_t
             ss << "proxy_t &interface, uint32_t version, ";
         }
       else
-        ss << arg.print_argument() << ", ";
+        ss << arg.print_argument(server) << ", ";
+
+    if(server)
+      ss << "bool post = true";
 
     if(ss.str().substr(ss.str().size()-2, 2) == ", ")
       ss.str(ss.str().substr(0, ss.str().size()-2));
@@ -261,13 +265,13 @@ struct request_t : public event_t
     return ss.str();
   }
 
-  std::string print_body(std::string interface_name)
+  std::string print_body(std::string interface_name, bool server)
   {
     std::stringstream ss;
-    if(ret.name == "")
+    if(ret.name == "" || server)
       ss <<  "void ";
     else
-      ss << ret.print_type() << " ";
+      ss << ret.print_type(server) << " ";
     ss << interface_name << "_t::" << name << "(";
 
     bool new_id_arg = false;
@@ -281,14 +285,20 @@ struct request_t : public event_t
             }
         }
       else
-        ss << arg.print_argument() << ", ";
+        ss << arg.print_argument(server) << ", ";
+
+    if(server)
+      ss << "bool post";
 
     if(ss.str().substr(ss.str().size()-2, 2) == ", ")
       ss.str(ss.str().substr(0, ss.str().size()-2));
     ss.seekp(0, std::ios_base::end);
-    ss << ")\n{" << std::endl;
+    ss << ")" << std::endl
+       << "{" << std::endl;
 
-    if(ret.name == "")
+    if(server)
+      ss <<  "  send_event(post, " << opcode << ", ";
+    else if(ret.name == "")
       ss <<  "  marshal(" << opcode << "u, ";
     else if(ret.interface == "")
       {
@@ -321,7 +331,7 @@ struct request_t : public event_t
     ss.seekp(0, std::ios_base::end);
     ss << ");" << std::endl;
 
-    if(ret.name != "")
+    if(ret.name != "" && !server)
       {
         if(new_id_arg)
           {
@@ -329,7 +339,7 @@ struct request_t : public event_t
                << "  return interface;" << std::endl;
           }
         else
-          ss << "  return " << ret.print_type() << "(p);" << std::endl;
+          ss << "  return " << ret.print_type(server) << "(p);" << std::endl;
       }
     ss << "}";
 
@@ -344,6 +354,10 @@ struct request_t : public event_t
 
     return ss.str();
   }
+};
+
+struct request_t : public event_t
+{
 };
 
 struct enum_entry_t : public element_t
@@ -381,12 +395,12 @@ struct enumeration_t : public element_t
       ss << "enum class " << iface_name << "_" << name << " : uint32_t" << std::endl
          << "  {" << std::endl;
     else
-      ss << "struct " << iface_name << "_" << name << " : public detail::bitfield<" << width << ", " << id << ">" << std::endl
+      ss << "struct " << iface_name << "_" << name << " : public wayland::detail::bitfield<" << width << ", " << id << ">" << std::endl
          << "{" << std::endl
-         << "  " << iface_name << "_" << name << "(const detail::bitfield<" << width << ", " << id << "> &b)" << std::endl
-         << "    : detail::bitfield<" << width << ", " << id << ">(b) {}" << std::endl
+         << "  " << iface_name << "_" << name << "(const wayland::detail::bitfield<" << width << ", " << id << "> &b)" << std::endl
+         << "    : wayland::detail::bitfield<" << width << ", " << id << ">(b) {}" << std::endl
          << "  " << iface_name << "_" << name << "(const uint32_t value)" << std::endl
-         << "    : detail::bitfield<" << width << ", " << id << ">(value) {}" << std::endl;
+         << "    : wayland::detail::bitfield<" << width << ", " << id << ">(value) {}" << std::endl;
 
     for(auto &entry : entries)
       {
@@ -396,7 +410,7 @@ struct enumeration_t : public element_t
         if(!bitfield)
           ss << "  " << entry.name << " = " << entry.value << "," << std::endl;
         else
-          ss << "  static const detail::bitfield<" << width << ", " << id << "> " << entry.name << ";" << std::endl;
+          ss << "  static const wayland::detail::bitfield<" << width << ", " << id << "> " << entry.name << ";" << std::endl;
       }
 
     if(!bitfield)
@@ -441,7 +455,7 @@ struct interface_t : public element_t
       ss << e.print_forward(name);
     return ss.str();
   }
-  
+
   std::string print_c_forward()
   {
     std::stringstream ss;
@@ -449,7 +463,7 @@ struct interface_t : public element_t
     return ss.str();
   }
 
-  std::string print_header()
+  std::string print_client_header(bool server)
   {
     std::stringstream ss;
     ss << "/** \\brief " << summary << std::endl
@@ -463,11 +477,11 @@ struct interface_t : public element_t
        << "  {" << std::endl;
 
     for(auto &event : events)
-      ss << event.print_functional() << std::endl;
+      ss << event.print_functional(server) << std::endl;
 
     ss << "  };" << std::endl
        << std::endl
-       << "  static int dispatcher(uint32_t opcode, std::vector<detail::any> args, std::shared_ptr<detail::events_base_t> e);" << std::endl
+       << "  static int dispatcher(uint32_t opcode, std::vector<wayland::detail::any> args, std::shared_ptr<wayland::detail::events_base_t> e);" << std::endl
        << std::endl
        << "  " << name << "_t(proxy_t const &wrapped_proxy, construct_proxy_wrapper_tag);" << std::endl
        << std::endl;
@@ -486,14 +500,69 @@ struct interface_t : public element_t
 
     for(auto &request : requests)
       if(request.name != "destroy")
-        ss << request.print_header() << std::endl;
+        ss << request.print_header(server) << std::endl;
 
     for(auto &event : events)
-      ss << event.print_signal_header() << std::endl;
+      ss << event.print_signal_header(server) << std::endl;
 
     ss << "};" << std::endl
        << std::endl;
-    
+
+    for(auto &enumeration : enums)
+      ss << enumeration.print_header(name) << std::endl;
+
+    return ss.str();
+  }
+
+  std::string print_server_header(bool server)
+  {
+    std::stringstream ss;
+    ss << "/** \\brief " << summary << std::endl
+       << description << std::endl
+       << "*/" << std::endl;
+
+    ss << "class " << name << "_t : public resource_t" << std::endl
+       << "{" << std::endl
+       << "private:" << std::endl
+       << "  struct events_t : public resource_t::events_base_t" << std::endl
+       << "  {" << std::endl;
+
+    for(auto &request : requests)
+      ss << request.print_functional(server) << std::endl;
+
+    ss << "  };" << std::endl
+       << std::endl
+       << "  static int dispatcher(int opcode, std::vector<wayland::detail::any> args, std::shared_ptr<resource_t::events_base_t> e);" << std::endl
+       << std::endl;
+
+    ss << "protected:" << std::endl
+       << "  static constexpr const wl_interface *interface = &wayland::server::detail::" << name << "_interface;" << std::endl
+       << "  static constexpr const unsigned int max_version = " << version << ";" << std::endl
+       << std::endl
+       << "  friend class global_t<" << name << "_t>;" << std::endl
+       << std::endl;
+
+    ss << "public:" << std::endl
+       << "  " << name << "_t();" << std::endl
+       << "  " << name << "_t(client_t client, uint32_t id, int version = " << version << ");" << std::endl
+       << "  " << name << "_t(const resource_t &resource);" << std::endl
+       << std::endl
+       << "  static const std::string interface_name;" << std::endl
+       << std::endl
+       << "  operator " << orig_name << "*() const;" << std::endl
+       << std::endl;
+
+    for(auto &event : events)
+      ss << event.print_header(true) << std::endl;
+
+    for(auto &request : requests)
+      ss << request.print_signal_header(server) << std::endl;
+
+    ss << "};" << std::endl
+       << std::endl
+       << "using global_" << name << "_t = global_t<" << name << "_t>;" << std::endl
+       << std::endl;
+
     for(auto &enumeration : enums)
       ss << enumeration.print_header(name) << std::endl;
 
@@ -507,7 +576,7 @@ struct interface_t : public element_t
     return ss.str();
   }
 
-  std::string print_body()
+  std::string print_client_body()
   {
     std::stringstream set_events;
     set_events << "  if(proxy_has_object() && get_wrapper_type() == wrapper_type::standard)" << std::endl
@@ -563,11 +632,11 @@ struct interface_t : public element_t
 
     for(auto &request : requests)
       if(request.name != "destroy")
-        ss << request.print_body(name) << std::endl
+        ss << request.print_body(name, false) << std::endl
            << std::endl;
 
     for(auto &event : events)
-      ss << event.print_signal_body(name) << std::endl;
+      ss << event.print_signal_body(name, false) << std::endl;
 
     ss << "int " << name << "_t::dispatcher(uint32_t opcode, std::vector<any> args, std::shared_ptr<detail::events_base_t> e)" << std::endl
        << "{" << std::endl;
@@ -577,11 +646,11 @@ struct interface_t : public element_t
         ss << "  std::shared_ptr<events_t> events = std::static_pointer_cast<events_t>(e);" << std::endl
            << "  switch(opcode)" << std::endl
            << "    {" << std::endl;
-        
+
         int opcode = 0;
         for(auto &event : events)
-          ss << event.print_dispatcher(opcode++) << std::endl;
-        
+          ss << event.print_dispatcher(opcode++, false) << std::endl;
+
         ss << "    }" << std::endl;
       }
 
@@ -594,7 +663,65 @@ struct interface_t : public element_t
     return ss.str();
   }
 
-  std::string print_interface_body()
+  std::string print_server_body()
+  {
+    std::stringstream ss;
+    ss << name << "_t::" << name << "_t(client_t client, uint32_t id, int version)" << std::endl
+       << "  : resource_t(client, &" << name << "_interface, id, version)" << std::endl
+       << "{" << std::endl
+       << "  set_events(std::shared_ptr<resource_t::events_base_t>(new events_t), dispatcher);" << std::endl
+       << "}" << std::endl
+       << name << "_t::" << name << "_t(const resource_t &resource)" << std::endl
+       << "  : resource_t(resource)" << std::endl
+       << "{" << std::endl
+       << "  set_events(std::shared_ptr<resource_t::events_base_t>(new events_t), dispatcher);" << std::endl
+       << "}" << std::endl
+       << std::endl
+       << name << "_t::" << name << "_t()" << std::endl
+       << "{" << std::endl
+       << "}" << std::endl
+       << std::endl
+       << "const std::string " << name << "_t::interface_name = \"" << orig_name << "\";" << std::endl
+       << std::endl
+       << name << "_t::operator " << orig_name << "*() const" << std::endl
+       << "{" << std::endl
+       << "  return reinterpret_cast<" << orig_name << "*> (c_ptr());" << std::endl
+       << "}" << std::endl
+       << std::endl;
+
+    for(auto &request : requests)
+      ss << request.print_signal_body(name, true) << std::endl
+         << std::endl;
+
+    for(auto &event : events)
+      ss << event.print_body(name, true) << std::endl;
+
+    ss << "int " << name << "_t::dispatcher(int opcode, std::vector<any> args, std::shared_ptr<resource_t::events_base_t> e)" << std::endl
+       << "{" << std::endl;
+
+    if(requests.size())
+      {
+        ss << "  std::shared_ptr<events_t> events = std::static_pointer_cast<events_t>(e);" << std::endl
+           << "  switch(opcode)" << std::endl
+           << "    {" << std::endl;
+
+        int opcode = 0;
+        for(auto &request : requests)
+          ss << request.print_dispatcher(opcode++, true) << std::endl;
+
+        ss << "    }" << std::endl;
+      }
+
+    ss << "  return 0;" << std::endl
+       << "}" << std::endl;
+
+    for(auto &enumeration : enums)
+      ss << enumeration.print_body(name) << std::endl;
+
+    return ss.str();
+  }
+
+  std::string print_interface_body(bool server)
   {
     std::stringstream ss;
     for(auto &request : requests)
@@ -663,8 +790,11 @@ struct interface_t : public element_t
       }
     ss << "};" << std::endl
        << std::endl;
-    ss << "const wl_interface wayland::detail::" << name << "_interface =" << std::endl
-       << "  {" << std::endl
+    if(server)
+      ss << "const wl_interface wayland::server::detail::" << name << "_interface =" << std::endl;
+    else
+      ss << "const wl_interface wayland::detail::" << name << "_interface =" << std::endl;
+    ss << "  {" << std::endl
        << "    \"" << orig_name << "\"," << std::endl
        << "    " << version << "," << std::endl
        << "    " << requests.size() << "," << std::endl
@@ -692,10 +822,10 @@ std::string unprefix(const std::string &name)
 
 int main(int argc, char *argv[])
 {
-  if(argc < 4)
+  if(argc < 6)
     {
       std::cerr << "Usage:" << std::endl
-                << "  " << argv[0] << " protocol1.xml [protocol2.xml ...] protocol.hpp protocol.cpp" << std::endl;
+                << "  " << argv[0] << " protocol1.xml [protocol2.xml ...] client-protocol.hpp client-protocol.cpp server-protocol.hpp server-protocol.cpp" << std::endl;
       return 1;
     }
 
@@ -788,9 +918,11 @@ int main(int argc, char *argv[])
               iface.requests.push_back(req);
             }
 
+          opcode = 0;
           for(xml_node &event : interface.children("event"))
             {
               event_t ev;
+              ev.opcode = opcode++;
               ev.name = event.attribute("name").value();
 
               if(event.attribute("since"))
@@ -837,6 +969,8 @@ int main(int argc, char *argv[])
                   else
                     arg.allow_null = false;
 
+                  if(arg.type == "new_id")
+                    ev.ret = arg;
                   ev.args.push_back(arg);
                 }
               iface.events.push_back(ev);
@@ -884,79 +1018,136 @@ int main(int argc, char *argv[])
                 }
               iface.enums.push_back(enu);
             }
-          
+
           interfaces.push_back(iface);
         }
     }
 
-  std::string hpp_file(argv[argc-2]), cpp_file(argv[argc-1]);
-  std::fstream wayland_hpp(hpp_file, std::ios_base::out | std::ios_base::trunc);
-  std::fstream wayland_cpp(cpp_file, std::ios_base::out | std::ios_base::trunc);
+  std::string client_hpp_file(argv[argc-4]);
+  std::string client_cpp_file(argv[argc-3]);
+  std::string server_hpp_file(argv[argc-2]);
+  std::string server_cpp_file(argv[argc-1]);
+  std::fstream wayland_client_hpp(client_hpp_file, std::ios_base::out | std::ios_base::trunc);
+  std::fstream wayland_client_cpp(client_cpp_file, std::ios_base::out | std::ios_base::trunc);
+  std::fstream wayland_server_hpp(server_hpp_file, std::ios_base::out | std::ios_base::trunc);
+  std::fstream wayland_server_cpp(server_cpp_file, std::ios_base::out | std::ios_base::trunc);
 
   // header intro
-  wayland_hpp << "#pragma once" << std::endl
-              << std::endl
-              << "#include <array>" << std::endl
-              << "#include <functional>" << std::endl
-              << "#include <memory>" << std::endl
-              << "#include <string>" << std::endl
-              << "#include <vector>" << std::endl
-              << std::endl
-              << "#include <wayland-client.hpp>" << std::endl
-              << std::endl;
+  wayland_client_hpp << "#pragma once" << std::endl
+                     << std::endl
+                     << "#include <array>" << std::endl
+                     << "#include <functional>" << std::endl
+                     << "#include <memory>" << std::endl
+                     << "#include <string>" << std::endl
+                     << "#include <vector>" << std::endl
+                     << std::endl
+                     << "#include <wayland-client.hpp>" << std::endl
+                     << std::endl;
+
+  wayland_server_hpp << "#pragma once" << std::endl
+                     << std::endl
+                     << "#include <array>" << std::endl
+                     << "#include <functional>" << std::endl
+                     << "#include <memory>" << std::endl
+                     << "#include <string>" << std::endl
+                     << "#include <vector>" << std::endl
+                     << std::endl
+                     << "#include <wayland-server.hpp>" << std::endl
+                     << std::endl;
 
   // C forward declarations
   for(auto &iface : interfaces)
     if(iface.name != "display")
-      wayland_hpp << iface.print_c_forward();
-  wayland_hpp << std::endl;
-  
-  wayland_hpp << "namespace wayland" << std::endl
-              << "{" << std::endl;
+      {
+        wayland_client_hpp << iface.print_c_forward();
+        wayland_server_hpp << iface.print_c_forward();
+      }
+  wayland_client_hpp << std::endl;
+  wayland_server_hpp << std::endl;
+
+  wayland_client_hpp << "namespace wayland" << std::endl
+                     << "{" << std::endl;
+  wayland_server_hpp << "namespace wayland" << std::endl
+                     << "{" << std::endl
+                     << "namespace server" << std::endl
+                     << "{" << std::endl;
 
   // C++ forward declarations
   for(auto &iface : interfaces)
     if(iface.name != "display")
-      wayland_hpp << iface.print_forward();
-  wayland_hpp << std::endl;
+      {
+        wayland_client_hpp << iface.print_forward();
+        wayland_server_hpp << iface.print_forward();
+      }
+  wayland_client_hpp << std::endl;
 
   // interface headers
-  wayland_hpp << "namespace detail" << std::endl
-              << "{" << std::endl;
+  wayland_client_hpp << "namespace detail" << std::endl
+                     << "{" << std::endl;
   for(auto &iface : interfaces)
-    wayland_hpp << iface.print_interface_header();
-  wayland_hpp  << "}" << std::endl
-  << std::endl;
+    wayland_client_hpp << iface.print_interface_header();
+  wayland_client_hpp  << "}" << std::endl
+                      << std::endl;
+
+  wayland_server_hpp << "namespace detail" << std::endl
+                     << "{" << std::endl;
+  for(auto &iface : interfaces)
+    wayland_server_hpp << iface.print_interface_header();
+  wayland_server_hpp  << "}" << std::endl
+                      << std::endl;
 
   // class declarations
   for(auto &iface : interfaces)
     if(iface.name != "display")
-      wayland_hpp << iface.print_header() << std::endl;
-  wayland_hpp << std::endl
-              << "}" << std::endl;
+      {
+        wayland_client_hpp << iface.print_client_header(false) << std::endl;
+        wayland_server_hpp << iface.print_server_header(true) << std::endl;
+      }
+  wayland_client_hpp << std::endl
+                     << "}" << std::endl;
+  wayland_server_hpp << std::endl
+                     << "}" << std::endl
+                     << "}" << std::endl;
 
   // body intro
-  auto hpp_slash_pos = hpp_file.find_last_of('/');
-  auto hpp_basename = (hpp_slash_pos == std::string::npos ? hpp_file : hpp_file.substr(hpp_slash_pos + 1));
-  wayland_cpp << "#include <" << hpp_basename << ">" << std::endl
-              << std::endl
-              << "using namespace wayland;" << std::endl
-              << "using namespace detail;" << std::endl
-              << std::endl;
-  
+  auto client_hpp_slash_pos = client_hpp_file.find_last_of('/');
+  auto client_hpp_basename = (client_hpp_slash_pos == std::string::npos ? client_hpp_file : client_hpp_file.substr(client_hpp_slash_pos + 1));
+  auto server_hpp_slash_pos = server_hpp_file.find_last_of('/');
+  auto server_hpp_basename = (server_hpp_slash_pos == std::string::npos ? server_hpp_file : server_hpp_file.substr(server_hpp_slash_pos + 1));
+  wayland_client_cpp << "#include <" << client_hpp_basename << ">" << std::endl
+                     << std::endl
+                     << "using namespace wayland;" << std::endl
+                     << "using namespace wayland::detail;" << std::endl
+                     << std::endl;
+  wayland_server_cpp << "#include <" << server_hpp_basename << ">" << std::endl
+                     << std::endl
+                     << "using namespace wayland::detail;" << std::endl
+                     << "using namespace wayland::server;" << std::endl
+                     << "using namespace wayland::server::detail;" << std::endl
+                     << std::endl;
+
   // interface bodys
   for(auto &iface : interfaces)
-    wayland_cpp << iface.print_interface_body();
+    {
+      wayland_client_cpp << iface.print_interface_body(false);
+      wayland_server_cpp << iface.print_interface_body(true);
+    }
 
   // class member definitions
   for(auto &iface : interfaces)
     if(iface.name != "display")
-      wayland_cpp << iface.print_body() << std::endl;
-  wayland_cpp << std::endl;
+      {
+        wayland_client_cpp << iface.print_client_body() << std::endl;
+        wayland_server_cpp << iface.print_server_body() << std::endl;
+      }
+  wayland_client_cpp << std::endl;
+  wayland_server_cpp << std::endl;
 
   // clean up
-  wayland_hpp.close();
-  wayland_cpp.close();
-  
+  wayland_client_hpp.close();
+  wayland_client_cpp.close();
+  wayland_server_hpp.close();
+  wayland_server_cpp.close();
+
   return 0;
 }

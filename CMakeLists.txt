@@ -68,7 +68,9 @@ if(BUILD_LIBRARIES)
     "${CMAKE_SOURCE_DIR}/protocols/viewporter.xml")
   set(PROTO_FILES
     "wayland-client-protocol.hpp"
-    "wayland-client-protocol.cpp")
+    "wayland-client-protocol.cpp"
+    "wayland-server-protocol.hpp"
+    "wayland-server-protocol.cpp")
   add_custom_command(
     OUTPUT ${PROTO_FILES}
     COMMAND "${WAYLAND_SCANNERPP}" ${PROTO_XMLS} ${PROTO_FILES}
@@ -91,8 +93,8 @@ if(BUILD_LIBRARIES)
     "include/wayland-client.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-client-protocol.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-version.hpp"
     src/wayland-client.cpp src/wayland-util.cpp wayland-client-protocol.cpp wayland-client-protocol.hpp)
   define_library(wayland-server++ "${WAYLAND_SERVER_CFLAGS}" "${WAYLAND_SERVER_LDFLAGS}"
-    "include/wayland-server.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-version.hpp"
-    src/wayland-server.cpp src/wayland-util.cpp)
+    "include/wayland-server.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-server-protocol.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-version.hpp"
+    src/wayland-server.cpp src/wayland-util.cpp wayland-server-protocol.cpp wayland-server-protocol.hpp)
   define_library(wayland-egl++ "${WAYLAND_EGL_CFLAGS}" "${WAYLAND_EGL_LDFLAGS}" include/wayland-egl.hpp src/wayland-egl.cpp wayland-client-protocol.hpp)
   define_library(wayland-cursor++ "${WAYLAND_CURSOR_CFLAGS}" "${WAYLAND_CURSOR_LDFLAGS}" include/wayland-cursor.hpp src/wayland-cursor.cpp wayland-client-protocol.hpp)
 
