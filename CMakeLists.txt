@@ -57,6 +57,7 @@ if(BUILD_LIBRARIES)
 
   # required libraries
   pkg_check_modules(WAYLAND_CLIENT REQUIRED "wayland-client>=1.11.0")
+  pkg_check_modules(WAYLAND_SERVER REQUIRED "wayland-server>=1.11.0")
   pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
   pkg_check_modules(WAYLAND_CURSOR REQUIRED wayland-cursor)
 
@@ -89,12 +90,15 @@ if(BUILD_LIBRARIES)
   define_library(wayland-client++ "${WAYLAND_CLIENT_CFLAGS}" "${WAYLAND_CLIENT_LDFLAGS}"
     "include/wayland-client.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-client-protocol.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-version.hpp"
     src/wayland-client.cpp src/wayland-util.cpp wayland-client-protocol.cpp wayland-client-protocol.hpp)
+  define_library(wayland-server++ "${WAYLAND_SERVER_CFLAGS}" "${WAYLAND_SERVER_LDFLAGS}"
+    "include/wayland-server.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-version.hpp"
+    src/wayland-server.cpp src/wayland-util.cpp)
   define_library(wayland-egl++ "${WAYLAND_EGL_CFLAGS}" "${WAYLAND_EGL_LDFLAGS}" include/wayland-egl.hpp src/wayland-egl.cpp wayland-client-protocol.hpp)
   define_library(wayland-cursor++ "${WAYLAND_CURSOR_CFLAGS}" "${WAYLAND_CURSOR_LDFLAGS}" include/wayland-cursor.hpp src/wayland-cursor.cpp wayland-client-protocol.hpp)
 
   # Install libraries
   install(FILES ${PROTO_XMLS} DESTINATION "${INSTALL_FULL_PKGDATADIR}/protocols")
-  install(TARGETS wayland-client++ wayland-egl++ wayland-cursor++
+  install(TARGETS wayland-client++ wayland-server++ wayland-egl++ wayland-cursor++
     LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}"
     RESOURCE DESTINATION "${INSTALL_FULL_PKGCONFIGDIR}")
