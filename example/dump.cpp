@@ -95,6 +95,11 @@ public:
     std::cout << "------" << std::endl;
     // Print output information
     display.roundtrip();
+
+    // Release outputs
+    for(auto &output : outputs)
+      output.release();
+    display.roundtrip();
   }
 };
 
