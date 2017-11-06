@@ -632,6 +632,11 @@ std::function<void()> &resource_t::on_destroy()
 
 //-----------------------------------------------------------------------------
 
+const bitfield<2, -1> fd_event_mask_t::readable{WL_EVENT_READABLE};
+const bitfield<2, -1> fd_event_mask_t::writable{WL_EVENT_WRITABLE};
+const bitfield<2, -1> fd_event_mask_t::hangup{WL_EVENT_HANGUP};
+const bitfield<2, -1> fd_event_mask_t::error{WL_EVENT_ERROR};
+
 event_loop_t::data_t *event_loop_t::wl_event_loop_get_user_data(wl_event_loop *client)
 {
   wl_listener *listener = wl_event_loop_get_destroy_listener(client, destroy_func);
@@ -745,7 +750,7 @@ wayland::detail::any &event_loop_t::user_data()
   return data->user_data;
 }
 
-event_source_t event_loop_t::add_fd(int fd, uint32_t mask, const std::function<int(int, uint32_t)> &func)
+event_source_t event_loop_t::add_fd(int fd, fd_event_mask_t mask, const std::function<int(int, uint32_t)> &func)
 {
   data->fd_funcs.push_back(func);
   return wl_event_loop_add_fd(event_loop, fd, mask, event_loop_t::event_loop_fd_func, &data->fd_funcs.back());
@@ -801,7 +806,7 @@ int event_source_t::timer_update(int ms_delay)
   return wl_event_source_timer_update(c_ptr(), ms_delay);
 }
 
-int event_source_t::fd_update(uint32_t mask)
+int event_source_t::fd_update(fd_event_mask_t mask)
 {
   return wl_event_source_fd_update(c_ptr(), mask);
 }
