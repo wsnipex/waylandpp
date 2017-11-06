@@ -811,10 +811,9 @@ namespace wayland
       int get_fd();
     };
 
-    class event_source_t
+    class event_source_t : public wayland::detail::refcounted_wrapper<wl_event_source>
     {
     private:
-      wl_event_source *event_source;
       event_source_t() = delete;
 
     protected:
@@ -822,8 +821,6 @@ namespace wayland
       friend class event_loop_t;
 
     public:
-      wl_event_loop *c_ptr() const;
-
       /** Arm or disarm a timer
        *
        * \param ms_delay The timeout in milliseconds.

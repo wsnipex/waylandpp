@@ -792,21 +792,21 @@ int event_loop_t::get_fd()
 //-----------------------------------------------------------------------------
 
 event_source_t::event_source_t(wl_event_source *p)
-  : event_source(p)
+  : wayland::detail::refcounted_wrapper<wl_event_source>({p, wl_event_source_remove})
 {
 }
 
 int event_source_t::timer_update(int ms_delay)
 {
-  return wl_event_source_timer_update(event_source, ms_delay);
+  return wl_event_source_timer_update(c_ptr(), ms_delay);
 }
 
 int event_source_t::fd_update(uint32_t mask)
 {
-  return wl_event_source_fd_update(event_source, mask);
+  return wl_event_source_fd_update(c_ptr(), mask);
 }
 
 void event_source_t::check()
 {
-  wl_event_source_check(event_source);
+  wl_event_source_check(c_ptr());
 }
