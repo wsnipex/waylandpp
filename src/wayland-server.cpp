@@ -467,6 +467,11 @@ wl_resource *resource_t::c_ptr() const
   return resource;
 }
 
+bool resource_t::has_object() const
+{
+  return resource;
+}
+
 wayland::detail::any &resource_t::user_data()
 {
   return data->user_data;

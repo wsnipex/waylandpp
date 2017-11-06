@@ -320,7 +320,7 @@ struct event_t : public element_t
         else if(arg.type == "fd")
           ss << "argument_t::fd(" << arg.name << "), ";
         else if(arg.type == "object")
-          ss << arg.name << ".proxy_has_object() ? reinterpret_cast<wl_object*>(" << arg.name << ".c_ptr()) : nullptr, ";
+          ss << arg.name << ".has_object() ? reinterpret_cast<wl_object*>(" << arg.name << ".c_ptr()) : nullptr, ";
         else if(arg.enum_name != "")
           ss << "static_cast<" << arg.print_enum_wire_type() << ">(" << arg.name + "), ";
         else
@@ -579,7 +579,7 @@ struct interface_t : public element_t
   std::string print_client_body()
   {
     std::stringstream set_events;
-    set_events << "  if(proxy_has_object() && get_wrapper_type() == wrapper_type::standard)" << std::endl
+    set_events << "  if(has_object() && get_wrapper_type() == wrapper_type::standard)" << std::endl
                << "    {" << std::endl
                << "      set_events(std::shared_ptr<detail::events_base_t>(new events_t), dispatcher);" << std::endl;
     if(destroy_opcode != -1)

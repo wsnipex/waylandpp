@@ -512,6 +512,12 @@ namespace wayland
       wayland::detail::any &user_data();
       void destroy();
 
+      /** \brief Check whether this wrapper actually wraps an object
+       *  \return true if there is an underlying object, false if this wrapper is
+       *          empty
+       */
+      bool has_object() const;
+
       /** Post "not enough memory" error to the client
        *
        * If the compositor has not enough memory to fulfill a certail request

@@ -382,14 +382,14 @@ wl_proxy *proxy_t::c_ptr() const
   return proxy;
 }
 
-bool proxy_t::proxy_has_object() const
+bool proxy_t::has_object() const
 {
   return proxy;
 }
 
 proxy_t::operator bool() const
 {
-  return proxy_has_object();
+  return has_object();
 }
 
 bool proxy_t::operator==(const proxy_t &right) const
@@ -440,7 +440,7 @@ void read_intent::read()
 display_t::display_t(int fd)
   : proxy_t(reinterpret_cast<wl_proxy*>(wl_display_connect_to_fd(fd)), proxy_t::wrapper_type::display)
 {
-  if(!proxy_has_object())
+  if(!has_object())
     throw std::runtime_error("Could not connect to Wayland display server via file-descriptor");
   interface = &display_interface;
 }
@@ -448,7 +448,7 @@ display_t::display_t(int fd)
 display_t::display_t(std::string name)
   : proxy_t(reinterpret_cast<wl_proxy*>(wl_display_connect(name == "" ? NULL : name.c_str())), proxy_t::wrapper_type::display)
 {
-  if(!proxy_has_object())
+  if(!has_object())
     throw std::runtime_error("Could not connect to Wayland display server via name");
   interface = &display_interface;
 }
