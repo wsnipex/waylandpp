@@ -673,6 +673,63 @@ std::function<void()> &resource_t::on_destroy()
 
 //-----------------------------------------------------------------------------
 
+global_base_t::global_base_t(display_t &display, const wl_interface* interface, unsigned int version, data_t *dat, wl_global_bind_func_t func)
+{
+  data = dat;
+  data->counter = 1;
+  global = wl_global_create(display.c_ptr(), interface, version, data,func);
+}
+
+void global_base_t::fini()
+{
+  data->counter--;
+  if(data->counter == 0)
+    {
+      delete data;
+      wl_global_destroy(c_ptr());
+    }
+}
+
+global_base_t::~global_base_t()
+{
+  fini();
+}
+
+global_base_t::global_base_t(const global_base_t &g)
+{
+  global = g.global;
+  data = g.data;
+  data->counter++;
+}
+
+global_base_t &global_base_t::operator=(const global_base_t& g)
+{
+  fini();
+  global = g.global;
+  data = g.data;
+  data->counter++;
+  return *this;
+}
+
+bool global_base_t::operator==(const global_base_t &g) const
+{
+  return c_ptr() == g.c_ptr();
+}
+
+wl_global *global_base_t::c_ptr() const
+{
+  if(!global)
+    throw std::runtime_error("global is null.");
+  return global;
+}
+
+wayland::detail::any &global_base_t::user_data()
+{
+  return data->user_data;
+}
+
+//-----------------------------------------------------------------------------
+
 const bitfield<2, -1> fd_event_mask_t::readable{WL_EVENT_READABLE};
 const bitfield<2, -1> fd_event_mask_t::writable{WL_EVENT_WRITABLE};
 const bitfield<2, -1> fd_event_mask_t::hangup{WL_EVENT_HANGUP};
