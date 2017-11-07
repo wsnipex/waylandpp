@@ -1,6 +1,5 @@
 #include <wayland-server-protocol.hpp>
 #include <iostream>
-#include <sys/mman.h>
 
 using namespace wayland::server;
 
@@ -175,6 +174,10 @@ public:
 
     // Handle surfaces and regions
     compositor.on_bind() = bind_mem_fn(&server::compositor_bind, this);
+
+    // Don't show anyone the seat global.
+    display.set_global_filter([] (client_t client, global_base_t global)
+                              { return !global.has_interface<seat_t>(); });
   }
 
   // Main event loop
